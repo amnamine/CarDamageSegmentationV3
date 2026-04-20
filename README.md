@@ -1,118 +1,175 @@
 # Car Damage Segmentation (CODEV3)
 
-Semantic **instance segmentation** for vehicle damage using a compact **YOLO segmentation** model ([Ultralytics](https://github.com/ultralytics/ultralytics)), trained on a multi-class car-damage dataset from [Roboflow](https://roboflow.com/). This repository bundles training artifacts, evaluation plots, and a small **desktop GUI** to run inference on photos.
+Car damage **instance segmentation** project built with [Ultralytics YOLO](https://github.com/ultralytics/ultralytics).  
+This repository includes:
+
+- a notebook training workflow (`CarDamageSegV3.ipynb`)
+- a desktop inference GUI (`tkinter_guiv3.py`)
+- two trained checkpoints:
+  - `cardmgv3_20.pt` (20 epochs)
+  - `cardmgv3_100.pt` (100 epochs)
+- full metrics/plots for each run in:
+  - `metrics20/`
+  - `metrics100/`
 
 ---
 
 ## What this project does
 
-- **Detects and segments** damaged regions on car images with class labels (16 damage-related classes in the trained dataset).
-- Ships **`cardmgv3.pt`**: trained **YOLO26n-seg** weights used by the GUI for prediction.
-- Includes **`CarDamageSegV3.ipynb`**: Colab-oriented workflow—install deps, download the dataset export, and launch `yolo train`.
-- Provides **`tkinter_guiv3.py`**: load an image, run the model, and view overlaid boxes and masks.
+- Detects and segments damaged car parts/areas from input images.
+- Outputs box + mask predictions using a YOLO segmentation model.
+- Provides an easy Tkinter app to run inference on local images.
+- Preserves training artifacts so you can compare shorter vs longer training runs.
 
 ---
 
-## Repository layout
+## Repository structure
 
-| Item | Description |
+| Path | Description |
 |------|-------------|
-| `tkinter_guiv3.py` | Tkinter app; loads `cardmgv3.pt` and displays predictions |
-| `cardmgv3.pt` | Fine-tuned YOLO segmentation weights |
-| `CarDamageSegV3.ipynb` | Dataset download + training command (Google Colab / GPU) |
-| `results.csv` | Per-epoch training and validation metrics from the last run |
-| `results.png` | Ultralytics training summary plot |
-| `labels.jpg` | Dataset label distribution visualization from training |
-| `confusion_matrix*.png` | Validation confusion matrices (counts and normalized) |
-| `Box*.png`, `Mask*.png` | Precision–recall and related curves for boxes and masks |
+| `tkinter_guiv3.py` | Desktop GUI for loading an image and visualizing segmentation predictions |
+| `CarDamageSegV3.ipynb` | Notebook used for dataset download and model training |
+| `cardmgv3_20.pt` | Trained checkpoint after 20 epochs |
+| `cardmgv3_100.pt` | Trained checkpoint after 100 epochs |
+| `metrics20/results.csv` | Per-epoch train/val metrics for the 20-epoch run |
+| `metrics100/results.csv` | Per-epoch train/val metrics for the 100-epoch run |
+| `metrics20/*.png` | Curves, confusion matrices, and visual summaries for 20 epochs |
+| `metrics100/*.png` | Curves, confusion matrices, and visual summaries for 100 epochs |
+
+`metrics20/` and `metrics100/` each include:
+- `results.png`
+- `BoxF1_curve.png`, `BoxPR_curve.png`, `BoxP_curve.png`, `BoxR_curve.png`
+- `MaskF1_curve.png`, `MaskPR_curve.png`, `MaskP_curve.png`, `MaskR_curve.png`
+- `confusion_matrix.png`, `confusion_matrix_normalized.png`
+- `labels.jpg`
+- `results.csv`
 
 ---
 
-## Model and training summary
+## Training setup (from notebook artifacts)
 
-Training was performed with **Ultralytics** (example environment: Colab, **Tesla T4**, CUDA), using:
+The notebook (`CarDamageSegV3.ipynb`) shows a Colab-style workflow:
+
+1. install dependencies (`ultralytics`, `roboflow`)
+2. download Roboflow dataset export (YOLO format)
+3. train with a command similar to:
+
+```bash
+yolo train model=yolo26n-seg.pt data=/content/car-damage-segmentation-3/data.yaml epochs=20 imgsz=640 batch=64 half=true
+```
+
+Key observed training configuration:
 
 | Setting | Value |
-|---------|--------|
-| Base weights | `yolo26n-seg.pt` |
-| Epochs | 20 |
+|---------|-------|
+| Base model | `yolo26n-seg.pt` |
 | Image size | 640 |
 | Batch size | 64 |
-| AMP / half precision | Enabled (`half=true`) |
-| Dataset format | YOLO26 export (Roboflow **car damage segmentation**, version 3) |
-
-Approximate scale from training logs: **~2.7k** training images and **491** validation images (**938** instances on the val split).
-
-**Final validation metrics** (epoch 20, from `results.csv`):
-
-| Task | mAP50 | mAP50–95 |
-|------|-------|----------|
-| Bounding boxes | **0.258** | **0.139** |
-| Instance masks | **0.217** | **0.100** |
-
-These numbers reflect this specific run and split; your mileage may vary if you change data, epochs, or hyperparameters.
+| Precision | mixed precision / `half=true` |
+| GPU (example in logs) | Tesla T4 |
+| Classes in dataset | 16 |
+| Validation split (from logs) | 491 images, 938 instances |
 
 ---
 
-## Requirements
+## 20 vs 100 Epoch Results
 
-- **Python** 3.10+ recommended  
-- **PyTorch** (CPU or CUDA; GPU speeds up training and inference)
+The two runs in this repo are separated cleanly by folder and checkpoint name:
 
-Python packages used by the GUI and inference:
+- **20 epochs**: `cardmgv3_20.pt` + `metrics20/`
+- **100 epochs**: `cardmgv3_100.pt` + `metrics100/`
+
+### Final epoch comparison
+
+| Run | Box mAP50 | Box mAP50-95 | Mask mAP50 | Mask mAP50-95 |
+|-----|-----------|--------------|------------|---------------|
+| 20 epochs (`metrics20/results.csv`, epoch 20) | 0.25816 | 0.13879 | 0.21738 | 0.10038 |
+| 100 epochs (`metrics100/results.csv`, epoch 100) | 0.26871 | 0.15796 | 0.26473 | 0.13287 |
+
+### Best achieved during training (not only last epoch)
+
+| Run | Best Box mAP50-95 (epoch) | Best Mask mAP50-95 (epoch) |
+|-----|---------------------------|----------------------------|
+| 20 epochs | 0.13990 (epoch 18) | 0.10285 (epoch 18) |
+| 100 epochs | 0.16549 (epoch 84) | 0.14253 (epoch 80) |
+
+### Practical interpretation
+
+- The **100-epoch model** is clearly stronger on segmentation quality metrics, especially masks (`mAP50-95(M)` improvement from `0.10038` to `0.13287` at final epoch).
+- The 100-epoch run also has higher best peaks, suggesting better convergence with longer training.
+- If you want better accuracy, prefer `cardmgv3_100.pt`.
+- If you need faster experimentation and smaller training budget, `cardmgv3_20.pt` remains a valid lightweight baseline.
+
+---
+
+## Running inference (GUI)
+
+### 1) Install requirements
 
 ```bash
 pip install ultralytics opencv-python pillow
 ```
 
-For the notebook workflow you also need:
+### 2) Choose which checkpoint the GUI loads
 
-```bash
-pip install roboflow
+The current `tkinter_guiv3.py` loads this fixed filename:
+
+```python
+self.model = YOLO("cardmgv3.pt")
 ```
 
----
+Since this repo now stores `cardmgv3_20.pt` and `cardmgv3_100.pt`, you have two options:
 
-## Run the desktop GUI
+- **Option A (no code change):** duplicate/rename your chosen file to `cardmgv3.pt`
+- **Option B (recommended):** edit `tkinter_guiv3.py` and replace the filename with:
+  - `cardmgv3_20.pt`, or
+  - `cardmgv3_100.pt`
 
-1. Place **`cardmgv3.pt`** in the same directory as the script (as shipped in this repo).
-2. From the project folder:
+### 3) Launch app
 
 ```bash
 python tkinter_guiv3.py
 ```
 
-3. Use **Load Image** → choose JPG/PNG/BMP → **Predict** to see boxes and masks. **Reset** clears the view.
+### 4) Use app
 
-If the weights file is missing or corrupt, the app shows an error and disables meaningful prediction until `cardmgv3.pt` is restored.
+- `Load Image` to select a JPG/JPEG/PNG/BMP
+- `Predict` to run segmentation and display overlays
+- `Reset` to clear the canvas
+
+If model loading fails, the app shows a message box and prediction is disabled until a valid checkpoint is provided.
 
 ---
 
-## Retrain or adapt (notebook)
+## Re-training notes
 
-Open `CarDamageSegV3.ipynb` in Jupyter, **Google Colab**, or VS Code. Typical steps:
+- Use `CarDamageSegV3.ipynb` as the reference training pipeline.
+- For local training, adapt Colab paths (`/content/...`) to local filesystem paths.
+- Keep each experiment in separate output folders (as done with `metrics20/` and `metrics100/`) for clean comparison.
+- Track both final and best metrics from `results.csv`, not only final epoch.
 
-1. Install `ultralytics` and `roboflow`.
-2. Authenticate Roboflow and download your dataset export (the notebook targets a YOLO26-style layout and a `data.yaml`).
-3. Run training, for example:
+---
 
-```bash
-yolo train model=yolo26n-seg.pt data=/path/to/your/data.yaml epochs=20 imgsz=640 batch=64 half=true
-```
+## Important security note
 
-Adjust paths for your machine (`/content/...` in the notebook is Colab-specific). Use your own Roboflow API key via **environment variables** or Roboflow’s documented auth—**do not commit secrets** to the notebook or git history.
-
-After training, copy the best weights from the Ultralytics run directory (e.g. `runs/segment/train/weights/best.pt`) and rename or symlink to `cardmgv3.pt` if you want the GUI to load them without code changes.
+The notebook currently contains a hard-coded Roboflow API key in source cells.  
+Best practice is to rotate that key and use environment variables instead of committing secrets to git.
 
 ---
 
 ## Credits
 
-- **[Ultralytics YOLO](https://github.com/ultralytics/ultralytics)** — training and inference stack  
-- **Roboflow** — dataset hosting and export tooling (see your project page for dataset license and citation)  
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for training/inference framework
+- Roboflow for dataset management and export tooling
 
 ---
 
-## License
+## License and usage
 
-This README does not set a license for third-party datasets or pretrained weights. Confirm terms for the Roboflow dataset and Ultralytics/YOLO usage in their respective documentation before redistribution or commercial use.
+This repository README does not itself define dataset/model redistribution rights.  
+Please verify:
+
+- dataset license and terms from the Roboflow project
+- Ultralytics/YOLO licensing terms
+
+before commercial usage or redistribution.
